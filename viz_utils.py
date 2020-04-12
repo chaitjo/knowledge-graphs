@@ -1,11 +1,15 @@
 import networkx as nx
 import matplotlib.pyplot as plt
+import itertools
 
 
 def draw_kg(triplets):
+    # Build networkx graph
     k_graph = nx.from_pandas_edgelist(triplets, source='subject', target='object', 
                                       create_using=nx.MultiDiGraph())
+    # Compute node degrees, for resizing highly connected nodes in plot
     node_deg = nx.degree(k_graph)
+    # Plot graph
     layout = nx.spring_layout(k_graph, k=0.15, iterations=20)
     plt.figure(num=None, figsize=(120, 90), dpi=80)
     nx.draw_networkx(
@@ -18,10 +22,12 @@ def draw_kg(triplets):
         edgecolors='black',
         node_color='white',
     )
+    # Build edge/relationship labels
     labels = dict(zip(
         list(zip(triplets.subject, triplets.object)),
         triplets['relation'].tolist()
     ))
+    # Add edge labels to plot
     nx.draw_networkx_edge_labels(
         k_graph, 
         pos=layout, 
@@ -32,13 +38,20 @@ def draw_kg(triplets):
     plt.show()
     
 
-def draw_kg_subgraph(triplets, node):
+def draw_kg_subgraph(triplets, node, n_hops=2, verbose=True):
+    # Build networkx graph
     k_graph = nx.from_pandas_edgelist(triplets, source='subject', target='object', 
                                       create_using=nx.MultiDiGraph())
-    nodes = [node] + list(nx.dfs_successors(k_graph, node).values())[0]
-    print(nodes)
+    # Build subgraph nodes list
+    nodes = [node]
+    # Add n-hop DFS successors
+    dfs_suc = list(nx.dfs_successors(k_graph, node).values())
+    if len(dfs_suc) > 0:
+        for hop in range(n_hops):
+            nodes += dfs_suc[hop]
+    # Build subgraph
     subgraph = k_graph.subgraph(nodes)
-    # layout = nx.spring_layout(subgraph, k=0.15, iterations=20)
+    # Plot subgraph
     layout = nx.circular_layout(subgraph)
     plt.figure(num=None, figsize=(10, 10), dpi=80)
     nx.draw_networkx(
@@ -51,14 +64,17 @@ def draw_kg_subgraph(triplets, node):
         edgecolors='black',
         node_color='white'
     )
+    # Build edge/relationship labels
     labels = dict(zip(
         (list(zip(triplets.subject, triplets.object))),
         triplets['relation'].tolist()
     ))
     edges = tuple(subgraph.out_edges(data=False))
     sublabels = {k: labels[k] for k in edges}
-    print(edges)
-    print(sublabels)
+    if verbose:
+        for pair in sublabels.keys():
+            print("\nS-R-O:\n", pair[0], "-", sublabels[pair], "-", pair[1])
+    # Add edge labels to plot
     nx.draw_networkx_edge_labels(
         subgraph, 
         pos=layout, 
