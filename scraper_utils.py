@@ -55,7 +55,7 @@ def wiki_scrape(start_page_name, verbose=True):
         'categories': list(page_name.categories.keys())
     }]
     
-    page_links = list(page_name.links.keys())
+    page_links = set(page_name.links.keys())
     # Multiprocessing to parallely scrape from multiple pages
     progress = tqdm(desc='Links Scraped', unit='', total=len(page_links)) if verbose else None
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
