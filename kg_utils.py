@@ -196,6 +196,13 @@ def extract_triplets(text, title, global_ents_list, verbose=False):
             
             # Append valid SRO triplets to list
             if triplet[0] != "" and triplet[1] != "" and triplet[2] != "" and triplet[0] != triplet[2]:
+                # Check for duplicate triplets within same sentence 
+                if subj == prev_subj and obj == prev_obj:
+                    prev_triplet = sro_triplets.pop()
+                    # Define relation as the longest relation span among duplicates
+                    if len(prev_triplet[1]) > len(triplet[1]):
+                        triplet = prev_triplet
+                
                 sro_triplets.append(triplet)
                 if verbose:
                     print("\nS-R-O:\n", subj, "-", relation, "-", obj)
@@ -227,7 +234,7 @@ def merge_duplicate_subjs(triplets, title=None):
     Returns
     -------
     triplets : pd.DataFrame
-        Updated dataframw with merged duplicate subjects
+        Updated dataframe with merged duplicate subjects
     """
     subjects = sorted(list(triplets.subject.unique()))
     prev_subj = subjects[0]
@@ -293,4 +300,11 @@ def prune_infreq_objects(triplets, threshold=2):
     triplets['obj_count'] = list(obj_counts[triplets.object])
     triplets.drop(triplets[triplets['obj_count'] < threshold].index, inplace=True)
     triplets = triplets.drop('obj_count', 1)
+    return triplets
+
+
+def prune_self_loops(triplets):
+    """Helper function to prune triplets where subject is the same as object
+    """
+    triplets.drop(triplets[triplets.subject==triplets.object].index, inplace=True)
     return triplets
