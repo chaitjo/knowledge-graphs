@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import itertools
 
 
-def draw_kg(triplets):
+def draw_kg(triplets, save_fig=False):
     # Build networkx graph
     k_graph = nx.from_pandas_edgelist(triplets, source='subject', target='object', 
                                       create_using=nx.MultiDiGraph())
@@ -35,10 +35,12 @@ def draw_kg(triplets):
         font_color='red'
     )
     plt.axis('off')
+    if save_fig:
+        plt.savefig("img/kg_full.png", format='png', bbox_inches='tight')
     plt.show()
     
 
-def draw_kg_subgraph(triplets, node, n_hops=2, verbose=True):
+def draw_kg_subgraph(triplets, node, n_hops=2, verbose=True, save_fig=False):
     # Build networkx graph
     k_graph = nx.from_pandas_edgelist(triplets, source='subject', target='object', 
                                       create_using=nx.MultiDiGraph())
@@ -82,4 +84,6 @@ def draw_kg_subgraph(triplets, node, n_hops=2, verbose=True):
         font_color='red'
     )
     plt.axis('off')
+    if save_fig:
+        plt.savefig(f"img/kg_{node.lower()}.png", format='png', bbox_inches='tight')
     plt.show()
