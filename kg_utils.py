@@ -1,6 +1,8 @@
 import pandas as pd
 import re
 import spacy
+from transformers import AutoModelForTokenClassification, AutoTokenizer
+import torch
 import neuralcoref
 from tqdm import tqdm
 
@@ -8,7 +10,7 @@ nlp = spacy.load('en_core_web_lg')
 neuralcoref.add_to_pipe(nlp)
 
 
-def extract_triplets(text, title, global_ents_list, verbose=False):
+def extract_triplets(text, title, global_ents_list, verbose=False, use_bert=False):
     """Method to extract Subject-Relation-Object triplets for KG construction
     
     Parameters
@@ -22,6 +24,8 @@ def extract_triplets(text, title, global_ents_list, verbose=False):
         recognize as Named entities or Nouns chunks
     verbose : bool, optional
         Flag for displaying progress bar and verbose output
+    use_bert : bool, optional
+        Flag for using pre-trained BERT for NER instead of Spacy (default)
         
     Returns
     -------
@@ -38,7 +42,7 @@ def extract_triplets(text, title, global_ents_list, verbose=False):
     text = re.sub(r'(?<=[.,])(?=[^\s0-9])', r' ', text)
     # print("\nFix formatting:\n", text)
     
-    # Resolve coreferences with Spacy
+    # Resolve coreferences with Spacy+neuralcoref
     text = nlp(text)
     text = nlp(text._.coref_resolved)
     # print("\nResolve coreferences:\n", text)
@@ -64,7 +68,19 @@ def extract_triplets(text, title, global_ents_list, verbose=False):
             [retokenizer.merge(span) for span in spans]
 
         # Re-build Named Entities by categories
-        ents = list(sent.ents)
+        if use_bert:
+            # TODO: 
+            # Implement using BERT NER model in combination with spacy features.
+            # There are several issues with BERT:
+            # 1. At the moment, using BERT means we won't be able to use spans, lemmas, PoS tags, etc.
+            #    from spacy. If needed, we can build a write functions to overcome this.
+            # 2. Unfortunately, pre-trained BERT does not support detailed NE types beyond 
+            #    (person, location, organization). On the other hand, spacy supports up to 18 NE types.
+            raise NotImplementedError
+            # ents = extract_ner_bert(sent)
+        else:
+            # Use spacy's NER model 
+            ents = list(sent.ents)
         main_ents = []  # Named Entities recognised by Spacy (Main)
         addn_ents = []  # Additional named entities (Date/Time/etc.)
         for ent in ents:
@@ -215,6 +231,71 @@ def extract_triplets(text, title, global_ents_list, verbose=False):
     # Convert to df
     sro_triplets_df = pd.DataFrame(sro_triplets, columns=['subject', 'relation', 'object'])
     return sro_triplets_df
+
+
+def extract_ner_bert(text, model=None, tokenizer=None):
+    """Method to extract Named Entities from text using pre-trained BERT
+    
+    Parameters
+    ----------
+    text : str
+        Text document/paragraph/sentence from which NEs are extracted
+    model : transformers.Model, optional
+        Pre-trained BERT model
+    tokenizer : tokenizers.Tokenizer, optional
+        Tokenizer associated with BERT model
+        
+    Returns
+    -------
+    ents : list
+        List of NEs in text
+    
+    Reference
+    ---------
+    HuggingFace Transformers library tutorials:
+    https://huggingface.co/transformers/usage.html#named-entity-recognition
+    """
+    if model is None:
+        model = AutoModelForTokenClassification.from_pretrained("dbmdz/bert-large-cased-finetuned-conll03-english")
+    if tokenizer is None:
+        tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
+        
+    label_list = [
+        "O",       # Outside of a named entity
+        "B-MISC",  # Beginning of a miscellaneous entity right after another miscellaneous entity
+        "I-MISC",  # Miscellaneous entity
+        "B-PER",   # Beginning of a person's name right after another person's name
+        "I-PER",   # Person's name
+        "B-ORG",   # Beginning of an organisation right after another organisation
+        "I-ORG",   # Organisation
+        "B-LOC",   # Beginning of a location right after another location
+        "I-LOC"    # Location
+    ]
+    tokens = tokenizer.tokenize(tokenizer.decode(tokenizer.encode(text)))
+    inputs = tokenizer.encode(text, return_tensors="pt")
+
+    outputs = model(inputs)[0]
+    predictions = torch.argmax(outputs, dim=2)
+    
+    # Build list of named entities
+    ents = []
+    cur_ent = ""
+    cur_label = ""
+    for token, prediction in zip(tokens, predictions[0].tolist()):
+        if label_list[prediction] != "O":
+            if token[:2] == "##":
+                # Append token to current NE
+                cur_ent += token[2:]
+            else:
+                # Start of a new NE
+                if cur_ent != "":
+                    ents.append(cur_ent)
+                cur_ent = token
+                cur_label = label_list[prediction]
+    if cur_ent != "":
+        ents.append(cur_ent)
+        
+    return ents
 
 
 def merge_duplicate_subjs(triplets, title=None):
