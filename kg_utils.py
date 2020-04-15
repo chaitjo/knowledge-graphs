@@ -10,6 +10,71 @@ nlp = spacy.load('en_core_web_lg')
 neuralcoref.add_to_pipe(nlp)
 
 
+def extract_ner_bert(text, model=None, tokenizer=None):
+    """Method to extract Named Entities from text using pre-trained BERT
+    
+    Parameters
+    ----------
+    text : str
+        Text document/paragraph/sentence from which NEs are extracted
+    model : transformers.Model, optional
+        Pre-trained BERT model
+    tokenizer : tokenizers.Tokenizer, optional
+        Tokenizer associated with BERT model
+        
+    Returns
+    -------
+    ents : list
+        List of NEs in text
+    
+    Reference
+    ---------
+    HuggingFace Transformers library tutorials:
+    https://huggingface.co/transformers/usage.html#named-entity-recognition
+    """
+    if model is None:
+        model = AutoModelForTokenClassification.from_pretrained("dbmdz/bert-large-cased-finetuned-conll03-english")
+    if tokenizer is None:
+        tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
+        
+    label_list = [
+        "O",       # Outside of a named entity
+        "B-MISC",  # Beginning of a miscellaneous entity right after another miscellaneous entity
+        "I-MISC",  # Miscellaneous entity
+        "B-PER",   # Beginning of a person's name right after another person's name
+        "I-PER",   # Person's name
+        "B-ORG",   # Beginning of an organisation right after another organisation
+        "I-ORG",   # Organisation
+        "B-LOC",   # Beginning of a location right after another location
+        "I-LOC"    # Location
+    ]
+    tokens = tokenizer.tokenize(tokenizer.decode(tokenizer.encode(text)))
+    inputs = tokenizer.encode(text, return_tensors="pt")
+
+    outputs = model(inputs)[0]
+    predictions = torch.argmax(outputs, dim=2)
+    
+    # Build list of named entities
+    ents = []
+    cur_ent = ""
+    cur_label = ""
+    for token, prediction in zip(tokens, predictions[0].tolist()):
+        if label_list[prediction] != "O":
+            if token[:2] == "##":
+                # Append token to current NE
+                cur_ent += token[2:]
+            else:
+                # Start of a new NE
+                if cur_ent != "":
+                    ents.append(cur_ent)
+                cur_ent = token
+                cur_label = label_list[prediction]
+    if cur_ent != "":
+        ents.append(cur_ent)
+        
+    return ents
+
+
 def extract_triplets(text, title, global_ents_list, verbose=False, use_bert=False):
     """Method to extract Subject-Relation-Object triplets for KG construction
     
@@ -73,7 +138,7 @@ def extract_triplets(text, title, global_ents_list, verbose=False, use_bert=Fals
             # Implement using BERT NER model in combination with spacy features.
             # There are several issues with BERT:
             # 1. At the moment, using BERT means we won't be able to use spans, lemmas, PoS tags, etc.
-            #    from spacy. If needed, we can build a write functions to overcome this.
+            #    from spacy. If needed in the future, we can write a functions to bridge the gap.
             # 2. Unfortunately, pre-trained BERT does not support detailed NE types beyond 
             #    (person, location, organization). On the other hand, spacy supports up to 18 NE types.
             raise NotImplementedError
@@ -233,71 +298,6 @@ def extract_triplets(text, title, global_ents_list, verbose=False, use_bert=Fals
     return sro_triplets_df
 
 
-def extract_ner_bert(text, model=None, tokenizer=None):
-    """Method to extract Named Entities from text using pre-trained BERT
-    
-    Parameters
-    ----------
-    text : str
-        Text document/paragraph/sentence from which NEs are extracted
-    model : transformers.Model, optional
-        Pre-trained BERT model
-    tokenizer : tokenizers.Tokenizer, optional
-        Tokenizer associated with BERT model
-        
-    Returns
-    -------
-    ents : list
-        List of NEs in text
-    
-    Reference
-    ---------
-    HuggingFace Transformers library tutorials:
-    https://huggingface.co/transformers/usage.html#named-entity-recognition
-    """
-    if model is None:
-        model = AutoModelForTokenClassification.from_pretrained("dbmdz/bert-large-cased-finetuned-conll03-english")
-    if tokenizer is None:
-        tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
-        
-    label_list = [
-        "O",       # Outside of a named entity
-        "B-MISC",  # Beginning of a miscellaneous entity right after another miscellaneous entity
-        "I-MISC",  # Miscellaneous entity
-        "B-PER",   # Beginning of a person's name right after another person's name
-        "I-PER",   # Person's name
-        "B-ORG",   # Beginning of an organisation right after another organisation
-        "I-ORG",   # Organisation
-        "B-LOC",   # Beginning of a location right after another location
-        "I-LOC"    # Location
-    ]
-    tokens = tokenizer.tokenize(tokenizer.decode(tokenizer.encode(text)))
-    inputs = tokenizer.encode(text, return_tensors="pt")
-
-    outputs = model(inputs)[0]
-    predictions = torch.argmax(outputs, dim=2)
-    
-    # Build list of named entities
-    ents = []
-    cur_ent = ""
-    cur_label = ""
-    for token, prediction in zip(tokens, predictions[0].tolist()):
-        if label_list[prediction] != "O":
-            if token[:2] == "##":
-                # Append token to current NE
-                cur_ent += token[2:]
-            else:
-                # Start of a new NE
-                if cur_ent != "":
-                    ents.append(cur_ent)
-                cur_ent = token
-                cur_label = label_list[prediction]
-    if cur_ent != "":
-        ents.append(cur_ent)
-        
-    return ents
-
-
 def merge_duplicate_subjs(triplets, title=None):
     """Helper function to merge duplicate subjects
     
@@ -323,7 +323,8 @@ def merge_duplicate_subjs(triplets, title=None):
         # TODO Use string edit distance between prev_subj and subj
         if prev_subj in subj:
             # Detect extension in subj compared to prev_subj and append it to relations of rows with subj
-            triplets.loc[triplets.subject==subj, 'relation'] = subj.replace(prev_subj, '').strip() + ' ' + triplets[triplets.subject==subj].relation
+            triplets.loc[triplets.subject==subj, 'relation'] = \
+                subj.replace(prev_subj, '').strip() + ' ' + triplets[triplets.subject==subj].relation
             # Update subject from subj to prev_subj
             triplets.loc[triplets.subject==subj, 'subject'] = prev_subj
             

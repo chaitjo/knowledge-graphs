@@ -20,8 +20,8 @@ def wiki_scrape(start_page_name, verbose=True):
         DataFrame containing all scraped Wikipedia articles linked to start_page_name,
         with entries ('page', 'text', 'link', 'categories')
         
-    Notes
-    -----
+    References
+    ----------
     Modified from https://towardsdatascience.com/auto-generated-knowledge-graphs-92ca99a81121
     """
     def follow_link(link):

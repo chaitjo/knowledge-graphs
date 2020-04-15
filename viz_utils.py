@@ -4,6 +4,19 @@ import itertools
 
 
 def draw_kg(triplets, save_fig=False):
+    """Method to plot and save full KG using networkx
+    
+    Parameters
+    ----------
+    triplets : pd.DataFrame
+        S-R-O triplets dataframe
+    save_fig : bool, optional
+        Flag for saving figure to /img directory
+    
+    References
+    ----------
+    Adapted from: https://towardsdatascience.com/auto-generated-knowledge-graphs-92ca99a81121
+    """
     # Build networkx graph
     k_graph = nx.from_pandas_edgelist(triplets, source='subject', target='object', 
                                       create_using=nx.MultiDiGraph())
@@ -41,6 +54,29 @@ def draw_kg(triplets, save_fig=False):
     
 
 def draw_kg_subgraph(triplets, node, n_hops=2, verbose=True, save_fig=False):
+    """Method to plot and save KG subgraph centered around a given node
+    
+    The subgraph around the node is build using all relationships 
+    that are at `n_hop` hops around the node in a DFS tree, 
+    i.e., those nodes that are reachable from given node in `n_hop` hops.
+    
+    Parameters
+    ----------
+    triplets : pd.DataFrame
+        S-R-O triplets dataframe
+    node : str
+        Node for which subgraph is computed
+    n_hops : int, optional
+        Number of hops for DFS neighborhood construction
+    verbose : bool, optional
+        Flag to print S-R-O triplets associated with node
+    save_fig : bool, optional
+        Flag for saving figure to /img directory
+    
+    References
+    ----------
+    Adapted from: https://towardsdatascience.com/auto-generated-knowledge-graphs-92ca99a81121
+    """
     # Build networkx graph
     k_graph = nx.from_pandas_edgelist(triplets, source='subject', target='object', 
                                       create_using=nx.MultiDiGraph())
