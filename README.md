@@ -2,7 +2,9 @@
 
 Challenge: Build a Knowledge Graph for the company **Bayer**, focused on their **Pharmacology business**.
 
-Please refer to the notebook `main.ipynb` for usage and visualizations of our results.
+Refer to the notebook [`main.ipynb`](main.ipynb) for usage and visualizations of our results. Check out the [presentation slides here](Chaitanya%20Joshi%20-%20Knowledge%20Graphs%20from%20Unstructured%20Text.pdf).
+
+![Bayer-Pharma Knowledge Graph](/img/kg.png)
 
 ## Installation
 
